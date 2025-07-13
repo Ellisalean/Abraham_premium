@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Viaje de Abraham - Mapa Interactivo Premium</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+    :root {
+        --color-primary: #e0701f;
+        --color-secondary: #cc661d;
+        --color-accent: #e74c3c;
+        --color-success: #2ecc71;
+        --text-light: #f5f7fa;
+        --text-dark: #333333;
+        --text-soft: #555555;
+        --bg-light: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        --bg-dark: linear-gradient(135deg, #0f2027 0%, #1a2e38 50%, #2c5364 100%);
+        --card-light: rgba(255, 255, 255, 0.98);
+        --card-dark: rgba(20, 28, 40, 0.97);
+        --shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        --border-light: rgba(0, 0, 0, 0.1);
+        --border-dark: rgba(255, 255, 255, 0.08);
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: var(--bg-light);
+        color: var(--text-dark);
+        height: 100vh;
+        overflow: hidden;
+        transition: all 0.5s ease;
+    }
+
+    body.dark-mode {
+        background: var(--bg-dark);
+        color: var(--text-light);
+    }
+
+    /* Texto mejorado para modo oscuro */
+    body.dark-mode .popup-desc,
+    body.dark-mode .timeline-desc,
+    body.dark-mode #bible-text,
+    body.dark-mode .legend-item {
+        color: #e0e0e0 !important;
+        opacity: 0.92;
+    }
+
+    body.dark-mode .popup-title,
+    body.dark-mode .timeline-title,
+    body.dark-mode .legend-title,
+    body.dark-mode #bible-ref {
+        color: #ff944d !important; /* Naranja más claro */
+    }
+
+    /* Contenedores principales */
+    #container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+    }
+
+    #header {
+        background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+        color: white;
+        padding: 1.2rem;
+        text-align: center;
+        box-shadow: var(--shadow);
+        z-index: 1000;
+        position: relative;
+    }
+
+    h1 {
+        margin: 0;
+        font-size: 2rem;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    #subtitle {
+        font-size: 0.95rem;
+        opacity: 0.9;
+        margin-top: 0.3rem;
+    }
+
+    /* Mapa y timeline */
+    #map-container {
+        display: flex;
+        flex: 1;
+        position: relative;
+    }
+
+    #map {
+        flex: 1;
+        z-index: 1;
+    }
+
+    #timeline {
+        width: 300px;
+        background: var(--card-light);
+        border-left: 1px solid var(--border-light);
+        overflow-y: auto;
+        padding: 1rem;
+        box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease;
+        z-index: 2;
+        max-height: calc(100vh - 80px);
+    }
+
+    body.dark-mode #timeline {
+        background: var(--card-dark);
+        border-left: 1px solid var(--border-dark);
+    }
+
+    /* Elementos de timeline */
+    .timeline-item {
+        padding: 1rem;
+        margin-bottom: 0.8rem;
+        border-radius: 8px;
+        background: var(--card-light);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    body.dark-mode .timeline-item {
+        background: rgba(30, 42, 62, 0.4);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(to bottom, var(--color-primary), var(--color-secondary));
+    }
+
+    .timeline-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+    }
+
+    .timeline-item.active {
+        background: linear-gradient(90deg, rgba(224, 112, 31, 0.15) 0%, rgba(204, 102, 29, 0.15) 100%);
+        border-left: 4px solid var(--color-primary);
+    }
+
+    .timeline-title {
+        font-weight: bold;
+        margin-bottom: 0.4rem;
+        color: var(--color-secondary);
+        display: flex;
+        align-items: center;
+    }
+
+    .timeline-desc {
+        font-size: 0.85rem;
+        color: var(--text-soft);
+        line-height: 1.5;
+        font-weight: 500;
+    }
+
+    .timeline-marker {
+        width: 12px;
+        height: 12px;
+        background: var(--color-primary);
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+        flex-shrink: 0;
+    }
+
+    /* Controles */
+    #toggle-timeline {
+        position: absolute;
+        right: 15px;
+        top: 15px;
+        background: var(--card-light);
+        border: none;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        color: var(--color-secondary);
+    }
+
+    body.dark-mode #toggle-timeline {
+        background: var(--card-dark);
+        color: var(--text-light);
+    }
+
+    #toggle-timeline:hover {
+        transform: scale(1.1);
+        background: var(--color-primary);
+        color: white;
+    }
+
+    /* Marcadores y popups */
+    .custom-marker {
+        background: var(--color-primary);
+        border-radius: 50%;
+        border: 3px solid white;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+    }
+
+    .custom-marker:hover {
+        transform: scale(1.2);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+    }
+
+    .custom-popup {
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        max-width: 250px;
+        background: var(--card-light);
+    }
+
+    body.dark-mode .custom-popup {
+        background: var(--card-dark);
+        border: 1px solid var(--border-dark);
+    }
+
+    .popup-title {
+        font-weight: bold;
+        color: var(--color-secondary);
+        margin-bottom: 0.5rem;
+        font-size: 1.1rem;
+    }
+
+    .popup-desc {
+        font-size: 0.9rem;
+        color: var(--text-soft);
+        line-height: 1.5;
+        font-weight: 500;
+    }
+
+    /* Línea de ruta */
+    .path-line {
+        stroke: var(--color-primary);
+        stroke-width: 3;
+        stroke-dasharray: 10, 5;
+        fill: none;
+        animation: dash 30s linear infinite;
+    }
+
+    @keyframes dash {
+        to {
+            stroke-dashoffset: 1000;
+        }
+    }
+
+    /* Leyenda */
+    .legend {
+        background: var(--card-light);
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        line-height: 1.6;
+        margin-top: 1rem;
+        border: 1px solid var(--border-light);
+    }
+
+    body.dark-mode .legend {
+        background: var(--card-dark);
+        border: 1px solid var(--border-dark);
+    }
+
+    .legend-title {
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        color: var(--color-secondary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.3rem;
+        font-size: 0.85rem;
+    }
+
+    .legend-color {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        margin-right: 8px;
+        border: 2px solid white;
+        flex-shrink: 0;
+    }
+
+    /* Controles de audio */
+    #audio-controls {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        z-index: 1000;
+        background: var(--card-light);
+        border-radius: 50px;
+        padding: 8px 12px;
+        box-shadow: var(--shadow);
+        display: flex;
+        gap: 8px;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(5px);
+        border: 1px solid var(--border-light);
+    }
+
+    body.dark-mode #audio-controls {
+        background: rgba(20, 28, 40, 0.9);
+        border: 1px solid var(--border-dark);
+    }
+
+    /* Panel bíblico */
+    #bible-panel {
+        position: absolute;
+        top: 80px;
+        right: 320px;
+        width: 280px;
+        background: var(--card-light);
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: var(--shadow);
+        z-index: 1000;
+        max-height: 60vh;
+        overflow-y: auto;
+        display: none;
+        border: 1px solid var(--border-light);
+    }
+
+    body.dark-mode #bible-panel {
+        background: var(--card-dark);
+        border: 1px solid var(--border-dark);
+    }
+
+    #bible-ref {
+        font-weight: bold;
+        color: var(--color-primary);
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    #bible-text {
+        font-size: 0.85rem;
+        line-height: 1.6;
+        font-style: italic;
+        color: var(--text-soft);
+    }
+
+    /* Controles del mapa */
+    #map-controls {
+        position: absolute;
+        top: 80px;
+        left: 20px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .map-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: var(--card-light);
+        color: var(--color-secondary);
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--shadow);
+        transition: all 0.3s ease;
+        border: 1px solid var(--border-light);
+    }
+
+    body.dark-mode .map-btn {
+        background: var(--card-dark);
+        color: var(--text-light);
+        border: 1px solid var(--border-dark);
+    }
+
+    .map-btn:hover {
+        transform: scale(1.1);
+        background: var(--color-primary);
+        color: white;
+    }
+
+    .audio-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--color-primary);
+        color: white;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .audio-btn:hover {
+        transform: scale(1.1);
+        background: var(--color-secondary);
+    }
+
+    .historical-map {
+        filter: sepia(70%) brightness(80%) contrast(120%);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        #timeline {
+            position: fixed;
+            right: 0;
+            top: 0;
+            height: 100%;
+            transform: translateX(100%);
+            width: 85%;
+            max-height: 100vh;
+        }
+        
+        #timeline.visible {
+            transform: translateX(0);
+        }
+        
+        #bible-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            top: auto;
+            width: auto;
+            max-height: 30vh;
+            z-index: 1001;
+        }
+        
+        #audio-controls {
+            bottom: auto;
+            top: 80px;
+            right: 20px;
+            left: auto;
+        }
+        
+        .legend {
+            font-size: 0.8rem;
+        }
+    }
+</style>
+</head>
+<body>
+    <div id="container">
+        <div id="header">
+            <h1><i class="fas fa-map-marked-alt"></i> El Viaje de Abraham</h1>
+            <div id="subtitle">Mapa interactivo con textos bíblicos, audio y capas históricas</div>
+        </div>
+        <div id="map-container">
+            <div id="map"></div>
+            <button id="toggle-timeline"><i class="fas fa-road"></i></button>
+            
+            <div id="map-controls">
+                <button class="map-btn" id="toggle-dark" title="Modo oscuro/claro">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button class="map-btn" id="toggle-historical" title="Mapa histórico">
+                    <i class="fas fa-map-marked-alt"></i>
+                </button>
+                <button class="map-btn" id="toggle-bible" title="Panel bíblico">
+                    <i class="fas fa-bible"></i>
+                </button>
+            </div>
+            
+            <div id="bible-panel">
+                <div id="bible-ref"><i class="fas fa-book-bible"></i> Génesis 12:1-3</div>
+                <div id="bible-text">
+                    "Pero el Señor le había dicho a Abram: «Deja tu tierra, tus parientes y la casa de tu padre, y vete a la tierra que te mostraré. Haré de ti una nación grande, y te bendeciré; haré famoso tu nombre, y serás una bendición. Bendeciré a los que te bendigan y maldeciré a los que te maldigan; ¡por medio de ti serán bendecidas todas las familias de la tierra!»"
+                </div>
+            </div>
+            
+            <div id="audio-controls">
+                <button class="audio-btn" id="play-audio" title="Reproducir narración">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="audio-btn" id="pause-audio" title="Pausar narración" style="display: none;">
+                    <i class="fas fa-pause"></i>
+                </button>
+                <button class="audio-btn" id="stop-audio" title="Detener narración">
+                    <i class="fas fa-stop"></i>
+                </button>
+                <button class="audio-btn" id="mute-audio" title="Silenciar">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+            </div>
+            
+            <div id="timeline">
+                <h3 style="text-align: center; margin-bottom: 1.5rem;">
+                    <i class="fas fa-road" style="color: var(--color-primary); margin-right: 8px;"></i>
+                    <span style="color: var(--color-secondary);">Ruta de Abraham</span>
+                </h3>
+                
+                <div class="timeline-item active" data-location="ur" data-bible-ref="Génesis 11:31-32" data-bible-text="«Taré tomó a su hijo Abram, a su nieto Lot... y salió con ellos de Ur de los caldeos para dirigirse a Canaán. Llegaron hasta Harán y se establecieron allí... Taré vivió doscientos cinco años, y murió en Harán.»">
+                    <div class="timeline-title"><span class="timeline-marker"></span>Ur de los Caldeos</div>
+                    <div class="timeline-desc">Ciudad sumeria en el sur de Irak con el Gran Zigurat. Abraham dejó esta próspera ciudad por obediencia a Dios.</div>
+                </div>
+                
+                <div class="timeline-item" data-location="haran" data-bible-ref="Génesis 12:4-5" data-bible-text="«Abram partió, tal como el Señor se lo había ordenado, y Lot se fue con él. Abram tenía setenta y cinco años cuando salió de Harán. Tomó a su esposa Sarai, a su sobrino Lot, todos los bienes que habían acumulado y todas las personas que habían adquirido en Harán, y se encaminaron a la tierra de Canaán.»">
+                    <div class="timeline-title"><span class="timeline-marker"></span>Harán</div>
+                    <div class="timeline-desc">Importante centro comercial en el sur de Turquía donde la familia de Abraham se estableció temporalmente.</div>
+                </div>
+                
+                <div class="timeline-item" data-location="canaan" data-bible-ref="Génesis 12:6-7" data-bible-text="«Abram atravesó toda esa región hasta llegar a Siquem, donde está la encina de Moré. En ese tiempo los cananeos habitaban en esa tierra. El Señor se apareció a Abram y le dijo: "A tu descendencia le daré esta tierra". Entonces Abram edificó allí un altar al Señor, porque se le había aparecido.»">
+                    <div class="timeline-title"><span class="timeline-marker"></span>Canaán</div>
+                    <div class="timeline-desc">La Tierra Prometida (actual Israel/Palestina). Abraham vivió aquí como extranjero en tiendas de campaña.</div>
+                </div>
+                
+                <div class="timeline-item" data-location="egypt" data-bible-ref="Génesis 12:10-20" data-bible-text="«Hubo entonces mucha hambre en la región, y Abram bajó a Egipto para establecerse allí por algún tiempo... Cuando estaba por llegar a Egipto, le dijo a Sarai su mujer: "Mira, sé que eres una mujer muy hermosa. Cuando los egipcios te vean, dirán: 'Esta es su mujer', y me matarán a mí, pero a ti te dejarán con vida. Por favor, di que eres mi hermana..."»">
+                    <div class="timeline-title"><span class="timeline-marker"></span>Egipto</div>
+                    <div class="timeline-desc">Abraham viajó aquí durante una hambruna. Por miedo, dijo que Sara era su hermana ante el faraón.</div>
+                </div>
+                
+                <div class="timeline-item" data-location="sodom" data-bible-ref="Génesis 13:10-13" data-bible-text="«Lot levantó la vista y vio que toda la llanura del Jordán, hasta llegar a Soar, era de riego —esto fue antes de que el Señor destruyera a Sodoma y Gomorra—; era como el jardín del Señor, como la tierra de Egipto... Lot escogió para sí toda la llanura del Jordán y se trasladó al oriente... Abram habitó en la tierra de Canaán, mientras que Lot se estableció entre las ciudades de la llanura, y fue poniendo sus tiendas hasta Sodoma. Pero los habitantes de Sodoma eran malvados y pecaban mucho contra el Señor.»">
+                    <div class="timeline-title"><span class="timeline-marker"></span>Sodoma</div>
+                    <div class="timeline-desc">Ciudad cerca del Mar Muerto donde Lot se estableció. Destruida posteriormente por su pecado.</div>
+                </div>
+                
+                <div class="timeline-item" data-location="moriah" data-bible-ref="Génesis 22:1-2" data-bible-text="«Pasado algún tiempo, Dios puso a prueba a Abraham y le dijo: —¡Abraham! —Aquí estoy —respondió. —Toma a tu hijo, el único que tienes y al que tanto amas, y ve a la región de Moria. Una vez allí, ofrécelo como holocausto en el monte que yo te indicaré.»">
+                    <div class="timeline-title"><span class="timeline-marker"></span>Monte Moriah</div>
+                    <div class="timeline-desc">Ubicado en Jerusalén, donde Abraham demostró su fe al estar dispuesto a sacrificar a Isaac.</div>
+                </div>
+                
+                <div class="timeline-item" data-location="return" data-bible-ref="Génesis 13:14-17" data-bible-text="«Después que Lot se separó de Abram, el Señor le dijo a Abram: "Alza la vista desde el lugar donde estás, y mira hacia el norte y hacia el sur, hacia el oriente y hacia el occidente. Toda la tierra que ves te la daré a ti y a tu descendencia para siempre. Yo haré que tu descendencia sea como el polvo de la tierra. Si alguien puede contar los granos de polvo, también podrá contar tu descendencia. ¡Recorre el país a lo largo y a lo ancho, porque a ti te lo daré!»">
+                    <div class="timeline-title"><span class="timeline-marker"></span>Regreso a Canaán</div>
+                    <div class="timeline-desc">Abraham vivió como nómada en la Tierra Prometida, donde Dios confirmó su pacto con él.</div>
+                </div>
+                
+                <div class="legend">
+                    <div class="legend-title"><i class="fas fa-key"></i> Leyenda del Mapa</div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: var(--color-primary);"></div>
+                        <span>Lugares importantes</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: var(--color-accent);"></div>
+                        <span>Eventos clave</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: var(--color-success);"></div>
+                        <span>Decisiones</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #f39c12;"></div>
+                        <span>Destinos finales</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // ======================
+            // CONFIGURACIÓN DEL MAPA
+            // ======================
+            const map = L.map('map', {
+                center: [33.0, 43.0],
+                zoom: 6,
+                zoomControl: false
+            });
+
+            // Capas de mapa
+            const modernMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                maxZoom: 10,
+                minZoom: 5
+            }).addTo(map);
+
+            const historicalMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Mapa Histórico',
+                className: 'historical-map',
+                maxZoom: 10,
+                minZoom: 5
+            });
+
+            // Añadir control de zoom personalizado
+            L.control.zoom({
+                position: 'topright'
+            }).addTo(map);
+
+            // ======================
+            // DATOS GEOGRÁFICOS
+            // ======================
+            const locations = {
+                ur: {
+                    lat: 30.9625,
+                    lng: 46.1044,
+                    name: "Ur de los Caldeos",
+                    desc: "Antigua ciudad sumeria en el sur de Mesopotamia (actual Irak). Abraham dejó esta próspera ciudad con arquitectura avanzada (incluido el Gran Zigurat) por obediencia al llamado de Dios.",
+                    audio: "https://raw.githubusercontent.com/Ellisalean/audios/main/Voz%20(audio-converterted).mp3",
+                    color: "#4b6cb7"
+                },
+                haran: {
+                    lat: 36.8640,
+                    lng: 39.0326,
+                    name: "Harán",
+                    desc: "Importante centro comercial en el sur de Turquía donde la familia de Abraham se estableció temporalmente después de salir de Ur. Su padre Taré murió aquí.",
+                    audio: "https://raw.githubusercontent.com/Ellisalean/audios/main/Harán_editado.mp3",
+                    color: "#4b6cb7"
+                },
+                canaan: {
+                    lat: 31.7683,
+                    lng: 35.2137,
+                    name: "Canaán (Tierra Prometida)",
+                    desc: "Región que abarca partes de Israel, Palestina y Líbano. Dios prometió esta tierra a Abraham y sus descendientes. Abraham vivió aquí como extranjero en tiendas.",
+                    audio: "https://raw.githubusercontent.com/Ellisalean/audios/main/Canaán_editado.mp3",
+                    color: "#4b6cb7"
+                },
+                egypt: {
+                    lat: 29.8511,
+                    lng: 31.3335,
+                    name: "Egipto",
+                    desc: "Abraham viajó aquí durante una hambruna en Canaán. Por miedo, dijo que Sara era su hermana, lo que casi causó problemas con el faraón.",
+                    audio: "https://raw.githubusercontent.com/Ellisalean/audios/main/Egipto_editado.mp3",
+                    color: "#2ecc71"
+                },
+                sodom: {
+                    lat: 31.5,
+                    lng: 35.5,
+                    name: "Sodoma y Gomorra",
+                    desc: "Ciudades cerca del Mar Muerto destruidas por su pecado. Lot eligió vivir aquí. Abraham intercedió por estas ciudades y rescató a Lot.",
+                    audio: "https://raw.githubusercontent.com/Ellisalean/audios/main/Sodoma%20y%20Gomorra_editado.mp3",
+                    color: "#e74c3c"
+                },
+                moriah: {
+                    lat: 31.7784,
+                    lng: 35.2298,
+                    name: "Monte Moriah (Jerusalén)",
+                    desc: "Ubicación donde Abraham estuvo dispuesto a sacrificar a Isaac, demostrando su fe absoluta en Dios. Dios proveyó un carnero como sustituto.",
+                    audio: "https://raw.githubusercontent.com/Ellisalean/audios/main/Monte%20Moriah_editado.mp3",
+                    color: "#e74c3c"
+                },
+                return: {
+                    lat: 31.7683,
+                    lng: 35.2137,
+                    name: "Regreso a Canaán",
+                    desc: "Abraham vivió el resto de sus días en la Tierra Prometida como extranjero. Dios confirmó su pacto con Abraham, prometiéndole numerosos descendientes.",
+                    audio: "https://raw.githubusercontent.com/Ellisalean/audios/main/Regreso%20a%20Canaán_editado.mp3",
+                    color: "#f39c12"
+                }
+            };
+
+            // ======================
+            // ELEMENTOS DEL MAPA
+            // ======================
+            const markers = {};
+            const pathCoords = [];
+
+            // Crear marcadores y ruta
+            Object.keys(locations).forEach(key => {
+                const loc = locations[key];
+                pathCoords.push([loc.lat, loc.lng]);
+
+                markers[key] = L.circleMarker([loc.lat, loc.lng], {
+                    radius: 8,
+                    fillColor: loc.color,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8,
+                    className: 'custom-marker'
+                }).addTo(map);
+
+                markers[key].bindPopup(`
+                    <div class="custom-popup">
+                        <div class="popup-title">${loc.name}</div>
+                        <div class="popup-desc">${loc.desc}</div>
+                    </div>
+                `);
+            });
+
+            // Añadir línea de ruta animada
+            const pathLine = L.polyline(pathCoords, {
+                color: '#4b6cb7',
+                weight: 3,
+                dashArray: '10, 5',
+                className: 'path-line'
+            }).addTo(map);
+
+            // Ajustar vista para mostrar toda la ruta
+            map.fitBounds(pathLine.getBounds(), { padding: [50, 50] });
+
+            // ======================
+            // FUNCIONALIDADES PREMIUM
+            // ======================
+
+            // 1. Modo Oscuro/Claro
+            const toggleDarkBtn = document.getElementById('toggle-dark');
+            toggleDarkBtn.addEventListener('click', function() {
+                document.body.classList.toggle('dark-mode');
+                this.innerHTML = document.body.classList.contains('dark-mode') ? 
+                    '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+            });
+
+            // 2. Cambiar Mapa Histórico/Moderno
+            const toggleMapBtn = document.getElementById('toggle-historical');
+            toggleMapBtn.addEventListener('click', function() {
+                if (map.hasLayer(modernMap)) {
+                    map.removeLayer(modernMap);
+                    historicalMap.addTo(map);
+                    this.innerHTML = '<i class="fas fa-map"></i>';
+                    this.title = "Mapa moderno";
+                } else {
+                    map.removeLayer(historicalMap);
+                    modernMap.addTo(map);
+                    this.innerHTML = '<i class="fas fa-map-marked-alt"></i>';
+                    this.title = "Mapa histórico";
+                }
+            });
+
+            // 3. Panel Bíblico Interactivo
+            const biblePanel = document.getElementById('bible-panel');
+            const bibleRef = document.getElementById('bible-ref');
+            const bibleText = document.getElementById('bible-text');
+            const toggleBibleBtn = document.getElementById('toggle-bible');
+
+            toggleBibleBtn.addEventListener('click', function() {
+                biblePanel.style.display = biblePanel.style.display === 'block' ? 'none' : 'block';
+            });
+
+            // Actualizar panel bíblico al hacer clic en timeline
+            document.querySelectorAll('.timeline-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    bibleRef.textContent = this.getAttribute('data-bible-ref');
+                    bibleText.textContent = this.getAttribute('data-bible-text');
+                    
+                    // Mostrar panel si estaba oculto
+                    if (biblePanel.style.display !== 'block') {
+                        biblePanel.style.display = 'block';
+                    }
+                });
+            });
+
+            // 4. Sistema de Audio
+            const audio = new Audio();
+            const playBtn = document.getElementById('play-audio');
+            const pauseBtn = document.getElementById('pause-audio');
+            const stopBtn = document.getElementById('stop-audio');
+            const muteBtn = document.getElementById('mute-audio');
+            let isMuted = false;
+
+            // Configurar botones de audio
+            playBtn.addEventListener('click', function() {
+                const currentLocation = document.querySelector('.timeline-item.active').getAttribute('data-location');
+                audio.src = locations[currentLocation].audio;
+                audio.play();
+                playBtn.style.display = 'none';
+                pauseBtn.style.display = 'flex';
+            });
+
+            pauseBtn.addEventListener('click', function() {
+                audio.pause();
+                pauseBtn.style.display = 'none';
+                playBtn.style.display = 'flex';
+            });
+
+            stopBtn.addEventListener('click', function() {
+                audio.pause();
+                audio.currentTime = 0;
+                pauseBtn.style.display = 'none';
+                playBtn.style.display = 'flex';
+            });
+
+            muteBtn.addEventListener('click', function() {
+                isMuted = !isMuted;
+                audio.muted = isMuted;
+                this.innerHTML = isMuted ? '<i class="fas fa-volume-mute"></i>' : '<i class="fas fa-volume-up"></i>';
+                this.title = isMuted ? "Activar sonido" : "Silenciar";
+            });
+
+            // 5. Interacción con Timeline
+            const timelineItems = document.querySelectorAll('.timeline-item');
+            const toggleTimelineBtn = document.getElementById('toggle-timeline');
+
+            timelineItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    // Actualizar clase activa
+                    timelineItems.forEach(i => i.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Centrar mapa en la ubicación
+                    const locationKey = this.getAttribute('data-location');
+                    const location = locations[locationKey];
+                    map.flyTo([location.lat, location.lng], 7, {
+                        duration: 1
+                    });
+                    
+                    // Abrir popup
+                    markers[locationKey].openPopup();
+                });
+            });
+
+            toggleTimelineBtn.addEventListener('click', function() {
+                const timeline = document.getElementById('timeline');
+                timeline.classList.toggle('visible');
+            });
+
+            // 6. Efecto de Parpadeo en Marcadores
+            function pulseMarkers() {
+                Object.keys(markers).forEach(key => {
+                    const marker = markers[key];
+                    
+                    if (!marker.isPopupOpen()) {
+                        marker.setStyle({
+                            fillOpacity: 0.4
+                        });
+                        
+                        setTimeout(() => {
+                            marker.setStyle({
+                                fillOpacity: 0.8
+                            });
+                        }, 800);
+                    }
+                });
+                
+                setTimeout(pulseMarkers, 3000);
+            }
+
+            // Iniciar animación después de 3 segundos
+            setTimeout(pulseMarkers, 3000);
+
+            // ======================
+            // CORRECCIÓN PARA MÓVIL
+            // ======================
+            function adjustForMobile() {
+                const isMobile = window.matchMedia("(max-width: 768px)").matches;
+                const audioControls = document.getElementById('audio-controls');
+                const biblePanel = document.getElementById('bible-panel');
+
+                if (isMobile) {
+                    // Mover controles de audio arriba
+                    audioControls.style.bottom = 'auto';
+                    audioControls.style.top = '80px';
+                    audioControls.style.right = '20px';
+                    audioControls.style.left = 'auto';
+
+                    // Ajustar panel bíblico
+                    biblePanel.style.position = 'fixed';
+                    biblePanel.style.bottom = '20px';
+                    biblePanel.style.left = '20px';
+                    biblePanel.style.right = '20px';
+                    biblePanel.style.top = 'auto';
+                    biblePanel.style.width = 'auto';
+                } else {
+                    // Restaurar valores para desktop
+                    audioControls.style.bottom = '20px';
+                    audioControls.style.top = 'auto';
+                    audioControls.style.right = 'auto';
+                    audioControls.style.left = '20px';
+
+                    biblePanel.style.position = 'absolute';
+                    biblePanel.style.bottom = 'auto';
+                    biblePanel.style.top = '80px';
+                    biblePanel.style.right = '320px';
+                    biblePanel.style.left = 'auto';
+                    biblePanel.style.width = '280px';
+                }
+            }
+
+            // Ejecutar al cargar y al cambiar tamaño de pantalla
+            window.addEventListener('load', adjustForMobile);
+            window.addEventListener('resize', adjustForMobile);
+        });
+    </script>
+</body>
+</html>
